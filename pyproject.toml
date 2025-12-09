@@ -1,0 +1,24 @@
+[project]
+name = "projet-arbres"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "catboost>=1.2.8",
+    "ipykernel>=7.1.0",
+    "ipywidgets>=8.1.8",
+    "matplotlib>=3.10.0",
+    "numpy>=2.3.5",
+    "openpyxl>=3.1.5",
+    "outlier-utils>=0.0.5",
+    "outliers>=0.1",
+    "pandas>=2.3.3",
+    "scikit-learn>=1.7.2",
+    "scipy>=1.16.3",
+    "seaborn>=0.13.2",
+    "setuptools>=80.9.0",
+    "statsmodels>=0.14.5",
+    "ydata-profiling>=4.18.0",
+    "xgboost>=2.1.0",
+]
