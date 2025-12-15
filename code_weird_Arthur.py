@@ -124,3 +124,14 @@ def create_text_attention_model(vocab_size, maxlen, horizons): # modèle autonom
     )
     return model
 
+# %%
+
+# Prétraitement texte : rendre le texte “numérique”
+
+tokenizer_2 = Tokenizer(num_words=20000, oov_token="<UNK>")
+tokenizer_2.fit_on_texts(df["headline_concat"])
+
+X_text_2 = tokenizer_2.texts_to_sequences(df["headline_concat"])
+X_text_2 = pad_sequences(X_text_2, maxlen=100, padding="post")
+
+
