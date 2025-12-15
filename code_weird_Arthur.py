@@ -134,4 +134,73 @@ tokenizer_2.fit_on_texts(df["headline_concat"])
 X_text_2 = tokenizer_2.texts_to_sequences(df["headline_concat"])
 X_text_2 = pad_sequences(X_text_2, maxlen=100, padding="post")
 
+#%%
+
+
+# Création de plusieurs horizons
+
+horizons = [1, 3, 5]
+
+# Retour simple : (P_t+1 - P_t)/P_t
+df["return_plus_1"] = df["Close"].pct_change(periods=1).shift(-1)
+df["return_plus_3"] = df["Close"].pct_change(periods=3).shift(-3)
+df["return_plus_5"] = df["Close"].pct_change(periods=5).shift(-5)
+
+
+y1 = df["Close"].pct_change(periods=1).shift(-1).values
+y3 = df["Close"].pct_change(periods=3).shift(-3).values
+y5 = df["Close"].pct_change(periods=5).shift(-5).values
+
+y_multi = np.column_stack([y1, y3, y5])
+
+scaler = StandardScaler()
+y_multi = scaler.fit_transform(y_multi)
+
+valid_idx = ~np.isnan(y_multi).any(axis=1)
+y_multi = y_multi[valid_idx]
+X_text_2 = X_text_2[-y_multi.shape[0]:]
+
+# Séparation des données
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X_text_2,
+    y_multi,
+    shuffle=False, # On ne mélange jamais le futur avec le passé
+    test_size=0.2
+)
+
+
+#%%
+
+# Modèle
+
+model = create_text_attention_model(
+    vocab_size=20000,
+    maxlen=100,
+    horizons=horizons
+)
+
+
+#%%
+
+# Entraînement
+
+model.fit(X_train, y_train,
+    epochs=10,
+    batch_size=32,
+    shuffle=False)
+
+#%%
+
+y_hat_h = model.predict(X_test)
+weights = np.array([0.5, 0.3, 0.2])
+text_index = y_hat_h @ weights
+
+
+
+# %%
+
+print(y_hat_h)
+
+# %%
 
