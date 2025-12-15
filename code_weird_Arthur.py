@@ -11,12 +11,31 @@
 # Auto encoder
 # Pour regénerer une image de base
 
+################################
+########################
+################
+########                
+#### 
+##
+# Demander à GPT de sortir les mots clés de headline et reddit
+##
+####
+######## 
+################
+########################
+################################
 
 #%%
 
 import pandas as pd
 import matplotlib.pyplot as plt
-
+import numpy as np
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Embedding, LSTM, Bidirectional, Dense, Concatenate, Layer
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from sklearn.preprocessing import StandardScaler
+import tensorflow as tf
 
 #%%
 
@@ -43,25 +62,65 @@ print(df.head())
 ########                ########
 ################################
 
-df["headline_concat"] = df["headline_concat"].astype(str)
-df["reddit_concat"] = df["reddit_concat"].astype(str)
 
+
+# %%
+################################
+########                ########
+##       MECA ATTENTION       ##
+##              2             ##
+########                ########
+################################
+
+from sklearn.model_selection import train_test_split
 
 #%%
 
-from tensorflow.keras.preprocessing.text import Tokenizer
-from tensorflow.keras.preprocessing.sequence import pad_sequences
+# L’attention de texte
 
-# on combine tous les textes pour construire un vocabulaire unique
-texts = df["headline_concat"].tolist() + df["reddit_concat"].tolist()
+class Attention(tf.keras.layers.Layer):
+    def __init__(self):
+        super().__init__()
+        self.dense = Dense(1) # pour calculer les scores d'attention
+        # "A quel point chaque mot est-il important ?"
 
-tokenizer = Tokenizer(num_words=20000, oov_token="<UNK>")
-tokenizer.fit_on_texts(texts)
+    def call(self, inputs):
+        scores = tf.nn.softmax(self.dense(inputs), axis=1) # chaque mot reçoit un poids relatif
+        context = tf.reduce_sum(scores * inputs, axis=1) # (tokens, features) → (features) : C’est le résumé intelligent du texte (l'indice latent)
+        # (scores * inputs = importance × contenu)
+        # Les mots inutiles deviennent presque nuls
+        # Les mots forts dominent
 
-# transformer en séquences d’indices
-headline_seq = tokenizer.texts_to_sequences(df["headline_concat"])
-reddit_seq = tokenizer.texts_to_sequences(df["reddit_concat"])
+        return context
 
-# longueur fixe
-headline_seq = pad_sequences(headline_seq, maxlen=50)
-reddit_seq = pad_sequences(reddit_seq, maxlen=50)
+#%%
+
+def create_text_attention_model(vocab_size, maxlen, horizons): # modèle autonome texte → indice
+
+    inputs = Input(shape=(maxlen,)) # Une phrase = une séquence de mots
+    
+    x = Embedding(vocab_size, 128)(inputs) # Chaque mot devient un vecteur, la phrase devient une matrice (tokens, features)
+    # Les mots deviennent du sens
+
+    x = Bidirectional(
+    LSTM(64, return_sequences=True))(x) # Sans return_sequences=True → pas d’attention possible, car on perd de l'information
+    # La phrase est comprise dans son contexte
+
+    x = Attention()(x) # le modèle apprend. Il sait quels mots sont importants.
+
+    x = Dense(32, activation="tanh")(x) # Transformation non linéaire du sens global
+    # Car mon indice est continu, négatif/positif, centré autour de 0. Pq tanh ? Car tanh donne des valeurs entre -1 et 1.
+
+    output = Dense(len(horizons), activation="tanh")(x) # len(horizons) pour la prise en compte des différents horizons
+    # output: mon indice, de sentiment
+    # négatif → pessimiste
+    # positif → optimiste
+    # proche de 0 → neutre
+    
+    model = Model(inputs, output)
+    model.compile(
+        optimizer="adam",
+        loss="mse"
+    )
+    return model
+
