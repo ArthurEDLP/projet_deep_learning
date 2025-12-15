@@ -151,6 +151,8 @@ y1 = df["Close"].pct_change(periods=1).shift(-1).values
 y3 = df["Close"].pct_change(periods=3).shift(-3).values
 y5 = df["Close"].pct_change(periods=5).shift(-5).values
 
+# Je perd les dernières lignes à cause du shift(-horizon)
+
 y_multi = np.column_stack([y1, y3, y5])
 
 scaler = StandardScaler()
@@ -192,6 +194,8 @@ model.fit(X_train, y_train,
 
 #%%
 
+# Pq pas mettre des hyperparamètres sur les poids des horizons 
+
 y_hat_h = model.predict(X_test)
 weights = np.array([0.5, 0.3, 0.2]) # pondération des horizons, car on considère qu'à CT c'est plus important
 text_index = y_hat_h @ weights
@@ -209,4 +213,22 @@ print(y_hat_h)
 print(text_index[:10])
 
 # 1 colonne : indice pondéré par le poids des horizons
+
+
+# %%
+
+# Pour ajouter la colonne text_index à df
+
+# Supposons que tu as créé X_text_2 et y_multi avec valid_idx
+# valid_idx correspond aux lignes valides utilisées pour le modèle
+# Ici, on prend la même portion de df
+
+df_subset = df.iloc[-len(text_index):].copy()  # les dernières lignes correspondent à text_index
+df_subset["text_index"] = text_index
+
+df_subset[["headline_concat", "text_index"]].head()
+
+# %%
+
+print(df_subset.info()) # il me reste que 397 lignes à cause des shifts donc on retravaille ça 
 # %%
