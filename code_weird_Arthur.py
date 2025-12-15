@@ -193,7 +193,7 @@ model.fit(X_train, y_train,
 #%%
 
 y_hat_h = model.predict(X_test)
-weights = np.array([0.5, 0.3, 0.2])
+weights = np.array([0.5, 0.3, 0.2]) # pondération des horizons, car on considère qu'à CT c'est plus important
 text_index = y_hat_h @ weights
 
 
@@ -202,5 +202,11 @@ text_index = y_hat_h @ weights
 
 print(y_hat_h)
 
+# 3 colonnes : horizon 1, 3, 5
+
 # %%
 
+print(text_index[:10])
+
+# 1 colonne : indice pondéré par le poids des horizons
+# %%
