@@ -152,29 +152,29 @@ X_text_V = pad_sequences(X_text_V, maxlen=100, padding="post")
 X_text_V              # texte tokenisé
 y_h0 = df["target_updown_plus_1_days"].values
 
-# Retour simple : (P_t+1 - P_t)/P_t
-#df["return_plus_1"] = df["Close"].pct_change(periods=1).shift(-1)
-#df["return_plus_3"] = df["Close"].pct_change(periods=3).shift(-3)
+# création des targets pour différents horizons
 
-# Je met sous hastag car on l'a déjà fait plus haut, c'est pour se souvenir
-
-y_h1 = df["Close"].pct_change(periods=1).shift(-1).values
+y_h1 = df["Close"].pct_change(periods=1).shift(-1).values # Calcul (P_t - P_{t-1}) / P_{t-1}
 y_h3 = df["Close"].pct_change(periods=3).shift(-3).values
+
+# shift(-1) : décale d’une ligne vers le haut pour que la valeur corresponde au jour suivant,
+# c’est-à-dire que la cible T+1 corresponde au texte du jour T.
 
 #%% 
 
 # Onenlève les lignes où il y a des NaN 
 
-mask_1 = ~np.isnan(y_h1)
+mask_1 = ~np.isnan(y_h1) # renvoie True si y_h1 n’est pas NaN
 mask_3 = ~np.isnan(y_h3)
 
-mask = mask_1 & mask_3
+mask = mask_1 & mask_3 # on garde seulement les lignes valides pour les deux horizons
 
-X_text_h = X_text_V[mask]
+X_text_h = X_text_V[mask] # On applique le masque pour ne garder que les lignes valides
 y_h0 = y_h0[mask]
 y_h1 = y_h1[mask]
 y_h3 = y_h3[mask]
 
+# garantit que toutes tes cibles et tes entrées textes ont la même longueur.
 
 
 #%%
@@ -340,4 +340,3 @@ df_merged[["headline_concat", "text_index_full"]].head()
 print(df_merged.info())
 # %%
 # df_merged.to_parquet("data/finance_ml_dataset_indices_headline.parquet", engine="fastparquet")
-# %%
