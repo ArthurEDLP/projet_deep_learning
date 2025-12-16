@@ -341,3 +341,12 @@ X_train_h3, X_test_h3, y_train_h3, y_test_h3 = train_test_split(
 
 model_h3 = create_text_attention_model(20000, 100)
 model_h3.fit(X_train, y_train, epochs=10, batch_size=32, shuffle=False)
+
+#%%
+
+y_hat_h0 = model_h0.predict(X_test)
+
+print(y_hat_h0)
+
+#%%
+
