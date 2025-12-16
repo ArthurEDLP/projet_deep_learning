@@ -31,11 +31,14 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Embedding, LSTM, Bidirectional, Dense, Concatenate, Layer
+from tensorflow.keras.layers import Input, Embedding, LSTM, Bidirectional, Dense
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from sklearn.preprocessing import StandardScaler
 import tensorflow as tf
+
+from sklearn.model_selection import train_test_split
+from sklearn.model_selection import TimeSeriesSplit
 
 #%%
 
@@ -64,7 +67,7 @@ print(df.head())
 ########                ########
 ################################
 
-from sklearn.model_selection import train_test_split
+
 
 #%%
 
@@ -368,6 +371,8 @@ y_horizons = np.column_stack([y_hat_h0, y_hat_h1, y_hat_h3])
 
 weights = np.array([0.5, 0.35, 0.15]) # pondération des horizons, car on considère qu'à CT c'est plus important
 
+# On peut aussi faire une regression pour apprendre les poids optimaux
+
 headline_index = y_horizons @ weights
 
 # %%
@@ -378,4 +383,91 @@ df_merged = df.iloc[-len(headline_index):].copy()  # les dernières lignes corre
 df_merged["headline_index"] = headline_index
 
 df_merged[["headline_concat", "headline_index"]].head()
+# %%
+
+
+################################
+########                ########
+##          PROBLEME          ##
+##    X_TEST = 397 lignes     ##
+## =>   Time Series Split     ##
+########                ########
+################################
+
+
+tscv = TimeSeriesSplit(n_splits=5)
+
+#%%
+
+# Horizon 0
+
+y_hat_h0_full = np.zeros(len(y_h0))  # pour stocker toutes les prédictions
+
+for train_idx, test_idx in tscv.split(X_text_h):
+    X_train_fold, X_test_fold = X_text_h[train_idx], X_text_h[test_idx]
+    y_train_fold, y_test_fold = y_h0[train_idx], y_h0[test_idx]
+
+    model_h0 = create_text_attention_model(20000, 100)
+    model_h0.fit(X_train_fold, y_train_fold, epochs=10, batch_size=32, shuffle=False, verbose=0)
+
+    y_hat_h0_full[test_idx] = model_h0.predict(X_test_fold).ravel()
+
+
+#%%
+
+# Horizon 1
+
+y_hat_h1_full = np.zeros(len(y_h1))  # pour stocker toutes les prédictions
+
+for train_idx, test_idx in tscv.split(X_text_h):
+    X_train_fold, X_test_fold = X_text_h[train_idx], X_text_h[test_idx]
+    y_train_fold, y_test_fold = y_h1[train_idx], y_h1[test_idx]
+
+    model_h1 = create_text_attention_model(20000, 100)
+    model_h1.fit(X_train_fold, y_train_fold, epochs=10, batch_size=32, shuffle=False, verbose=0)
+
+    y_hat_h1_full[test_idx] = model_h1.predict(X_test_fold).ravel()
+
+
+#%%
+
+# Horizon 3
+
+y_hat_h3_full = np.zeros(len(y_h3))  # pour stocker toutes les prédictions
+
+for train_idx, test_idx in tscv.split(X_text_h):
+    X_train_fold, X_test_fold = X_text_h[train_idx], X_text_h[test_idx]
+    y_train_fold, y_test_fold = y_h3[train_idx], y_h3[test_idx]
+
+    model_h3 = create_text_attention_model(20000, 100)
+    model_h3.fit(X_train_fold, y_train_fold, epochs=10, batch_size=32, shuffle=False, verbose=0)
+
+    y_hat_h3_full[test_idx] = model_h3.predict(X_test_fold).ravel()
+
+#%% 
+
+# Pondération des horizons avec TSP
+
+y_horizons_full = np.column_stack([y_hat_h0_full, y_hat_h1_full, y_hat_h3_full])
+weights = np.array([0.5, 0.35, 0.15])
+text_index_full = y_horizons_full @ weights
+
+#%%
+
+# Il y a un problème de longueur : 1986 instead of 1989
+# Donc fait en sorte d'avoir la longueur de h3
+
+# On crée un mask sur toute la longueur de df
+mask = ~np.isnan(df["Close"].pct_change(periods=1).shift(-1)) & \
+       ~np.isnan(df["Close"].pct_change(periods=3).shift(-3))
+
+# Garder uniquement les lignes valides
+df_merged = df[mask].copy()
+
+# Ajouter ton indice texte calculé
+df_merged["text_index_full"] = text_index_full  # text_index_full doit avoir la même longueur que df_merged
+
+# Vérification
+df_merged[["headline_concat", "text_index_full"]].head()
+
 # %%
