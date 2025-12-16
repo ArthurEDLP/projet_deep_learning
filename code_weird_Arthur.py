@@ -338,3 +338,5 @@ df_merged[["headline_concat", "text_index_full"]].head()
 
 print(df_merged.info())
 # %%
+df_merged.to_parquet("data/finance_ml_dataset_indices_headline.parquet", engine="fastparquet")
+# %%
