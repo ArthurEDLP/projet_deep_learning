@@ -368,6 +368,14 @@ y_horizons = np.column_stack([y_hat_h0, y_hat_h1, y_hat_h3])
 
 weights = np.array([0.5, 0.35, 0.15]) # pondération des horizons, car on considère qu'à CT c'est plus important
 
-text_index = y_horizons @ weights
+headline_index = y_horizons @ weights
 
+# %%
+
+# ajout de la colonne headline_index à df
+
+df_merged = df.iloc[-len(headline_index):].copy()  # les dernières lignes correspondent à text_index
+df_merged["headline_index"] = headline_index
+
+df_merged[["headline_concat", "headline_index"]].head()
 # %%
