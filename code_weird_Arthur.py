@@ -360,3 +360,14 @@ y_hat_h3 = model_h3.predict(X_test_h3)
 
 print(y_hat_h3)
 
+#%%
+
+# Moyenne pondérés des 3 horizons
+
+y_horizons = np.column_stack([y_hat_h0, y_hat_h1, y_hat_h3])
+
+weights = np.array([0.5, 0.35, 0.15]) # pondération des horizons, car on considère qu'à CT c'est plus important
+
+text_index = y_horizons @ weights
+
+# %%
