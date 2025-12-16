@@ -54,21 +54,13 @@ plt.show()
 
 # %%
 print(df.head())
-# %%
-
-################################
-########                ########
-##       MECA ATTENTION       ##
-########                ########
-################################
-
 
 
 # %%
 ################################
 ########                ########
 ##       MECA ATTENTION       ##
-##              2             ##
+##         3 horizons         ##
 ########                ########
 ################################
 
@@ -128,7 +120,7 @@ def create_text_attention_model(vocab_size, maxlen, horizons): # modèle autonom
 
 # Prétraitement texte : rendre le texte “numérique”
 
-tokenizer_2 = Tokenizer(num_words=20000, oov_token="<UNK>")
+tokenizer_2 = Tokenizer(num_words=20000, oov_token="<UNK>") # stratégie d'attributions des mots en vecteurs
 tokenizer_2.fit_on_texts(df["headline_concat"])
 
 X_text_2 = tokenizer_2.texts_to_sequences(df["headline_concat"])
@@ -192,6 +184,8 @@ model.fit(X_train, y_train,
     batch_size=32,
     shuffle=False)
 
+# plus le loss est faible (MSE), plus le modèle est bon
+
 #%%
 
 # Pq pas mettre des hyperparamètres sur les poids des horizons 
@@ -230,5 +224,15 @@ df_subset[["headline_concat", "text_index"]].head()
 
 # %%
 
-print(df_subset.info()) # il me reste que 397 lignes à cause des shifts donc on retravaille ça 
+print(df_subset.info()) # il me reste que 397 lignes CAR je suis avec X_text
+
+
 # %%
+
+################################
+########                ########
+##       MECA ATTENTION       ##
+##          3 modèles         ##
+##         3 horizons         ##
+########                ########
+################################
