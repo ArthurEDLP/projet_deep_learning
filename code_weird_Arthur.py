@@ -87,7 +87,7 @@ class Attention(tf.keras.layers.Layer):
 
 #%%
 
-def create_text_attention_model(vocab_size, maxlen, horizons): # modèle autonome texte → indice
+def create_text_attention_model_horizons(vocab_size, maxlen, horizons): # modèle autonome texte → indice
 
     inputs = Input(shape=(maxlen,)) # Une phrase = une séquence de mots
     
@@ -168,7 +168,7 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 # Modèle
 
-model = create_text_attention_model(
+model = create_text_attention_model_horizons(
     vocab_size=20000,
     maxlen=100,
     horizons=horizons
@@ -236,3 +236,40 @@ print(df_subset.info()) # il me reste que 397 lignes CAR je suis avec X_text
 ##         3 horizons         ##
 ########                ########
 ################################
+
+# Ce que l'on a fait c'était un modèle qui prédit les 3 horizons en même temps
+# Maintenant on va faire 3 modèles séparés, un pour chaque horizon
+
+def create_text_attention_model(vocab_size, maxlen):
+
+    inputs = Input(shape=(maxlen,))
+    
+    x = Embedding(vocab_size, 128)(inputs)
+
+    x = Bidirectional(
+    LSTM(64, return_sequences=True))(x)
+
+    x = Attention()(x)
+
+    x = Dense(32, activation="tanh")(x)
+
+    output = Dense(1, activation="tanh")(x)
+    
+    model = Model(inputs, output)
+    model.compile(
+        optimizer="adam",
+        loss="mse"
+    )
+    return model
+
+# La fonction d'attention est la même que précédemment
+
+# %%
+
+# Prétraitement texte : rendre le texte “numérique”
+
+tokenizer_V = Tokenizer(num_words=20000, oov_token="<UNK>") # stratégie d'attributions des mots en vecteurs
+tokenizer_V.fit_on_texts(df["headline_concat"])
+
+X_text_V = tokenizer_V.texts_to_sequences(df["headline_concat"])
+X_text_V = pad_sequences(X_text_V, maxlen=100, padding="post")
