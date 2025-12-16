@@ -150,6 +150,9 @@ y_multi = np.column_stack([y1, y3, y5])
 scaler = StandardScaler()
 y_multi = scaler.fit_transform(y_multi)
 
+# Les rendements futurs créent des NaN → on coupe proprement les données
+# on enlève les lignes où y_multi a des NaN
+
 valid_idx = ~np.isnan(y_multi).any(axis=1)
 y_multi = y_multi[valid_idx]
 X_text_2 = X_text_2[-y_multi.shape[0]:]
@@ -273,3 +276,68 @@ tokenizer_V.fit_on_texts(df["headline_concat"])
 
 X_text_V = tokenizer_V.texts_to_sequences(df["headline_concat"])
 X_text_V = pad_sequences(X_text_V, maxlen=100, padding="post")
+
+#%%
+
+# Création des différents horizons
+
+X_text_V              # texte tokenisé
+y_h0 = df["target_updown_plus_1_days"].values
+
+# Retour simple : (P_t+1 - P_t)/P_t
+#df["return_plus_1"] = df["Close"].pct_change(periods=1).shift(-1)
+#df["return_plus_3"] = df["Close"].pct_change(periods=3).shift(-3)
+
+# Je met sous hastag car on l'a déjà fait plus haut, c'est pour se souvenir
+
+y_h1 = df["Close"].pct_change(periods=1).shift(-1).values
+y_h3 = df["Close"].pct_change(periods=3).shift(-3).values
+
+#%% 
+
+# Onenlève les lignes où il y a des NaN 
+
+mask_1 = ~np.isnan(y_h1)
+mask_3 = ~np.isnan(y_h3)
+
+mask = mask_1 & mask_3
+
+X_text_h = X_text_V[mask]
+y_h0 = y_h0[mask]
+y_h1 = y_h1[mask]
+y_h3 = y_h3[mask]
+
+
+
+#%%
+
+# Séparation des données h0
+
+X_train_h0, X_test_h0, y_train_h0, y_test_h0 = train_test_split(
+    X_text_h, y_h0, shuffle=False, test_size=0.2
+)
+
+model_h0 = create_text_attention_model(20000, 100)
+model_h0.fit(X_train, y_train, epochs=10, batch_size=32, shuffle=False)
+
+# %%
+
+# Séparation des données h1
+
+X_train_h1, X_test_h1, y_train_h1, y_test_h1 = train_test_split(
+    X_text_h, y_h1, shuffle=False, test_size=0.2
+)
+
+model_h1 = create_text_attention_model(20000, 100)
+model_h1.fit(X_train, y_train, epochs=10, batch_size=32, shuffle=False)
+
+# %%
+
+# Séparation des données h3
+
+X_train_h3, X_test_h3, y_train_h3, y_test_h3 = train_test_split(
+    X_text_h, y_h3, shuffle=False, test_size=0.2
+)
+
+model_h3 = create_text_attention_model(20000, 100)
+model_h3.fit(X_train, y_train, epochs=10, batch_size=32, shuffle=False)
