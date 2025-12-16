@@ -344,9 +344,19 @@ model_h3.fit(X_train, y_train, epochs=10, batch_size=32, shuffle=False)
 
 #%%
 
-y_hat_h0 = model_h0.predict(X_test)
+y_hat_h0 = model_h0.predict(X_test_h0)
 
 print(y_hat_h0)
 
 #%%
+
+y_hat_h1 = model_h1.predict(X_test_h1)
+
+print(y_hat_h1)
+
+#%%
+
+y_hat_h3 = model_h3.predict(X_test_h3)
+
+print(y_hat_h3)
 
