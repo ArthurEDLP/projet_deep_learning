@@ -31,11 +31,14 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Embedding, LSTM, Bidirectional, Dense, Concatenate, Layer
+from tensorflow.keras.layers import Input, Embedding, LSTM, Bidirectional, Dense
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from sklearn.preprocessing import StandardScaler
 import tensorflow as tf
+
+from sklearn.model_selection import train_test_split
+from sklearn.model_selection import TimeSeriesSplit
 
 #%%
 
@@ -64,7 +67,7 @@ print(df.head())
 ########                ########
 ################################
 
-from sklearn.model_selection import train_test_split
+
 
 #%%
 
@@ -84,150 +87,6 @@ class Attention(tf.keras.layers.Layer):
         # Les mots forts dominent
 
         return context
-
-#%%
-
-def create_text_attention_model_horizons(vocab_size, maxlen, horizons): # modèle autonome texte → indice
-
-    inputs = Input(shape=(maxlen,)) # Une phrase = une séquence de mots
-    
-    x = Embedding(vocab_size, 128)(inputs) # Chaque mot devient un vecteur, la phrase devient une matrice (tokens, features)
-    # Les mots deviennent du sens
-
-    x = Bidirectional(
-    LSTM(64, return_sequences=True))(x) # Sans return_sequences=True → pas d’attention possible, car on perd de l'information
-    # La phrase est comprise dans son contexte
-
-    x = Attention()(x) # le modèle apprend. Il sait quels mots sont importants.
-
-    x = Dense(32, activation="tanh")(x) # Transformation non linéaire du sens global
-    # Car mon indice est continu, négatif/positif, centré autour de 0. Pq tanh ? Car tanh donne des valeurs entre -1 et 1.
-
-    output = Dense(len(horizons), activation="tanh")(x) # len(horizons) pour la prise en compte des différents horizons
-    # output: mon indice, de sentiment
-    # négatif → pessimiste
-    # positif → optimiste
-    # proche de 0 → neutre
-    
-    model = Model(inputs, output)
-    model.compile(
-        optimizer="adam",
-        loss="mse"
-    )
-    return model
-
-# %%
-
-# Prétraitement texte : rendre le texte “numérique”
-
-tokenizer_2 = Tokenizer(num_words=20000, oov_token="<UNK>") # stratégie d'attributions des mots en vecteurs
-tokenizer_2.fit_on_texts(df["headline_concat"])
-
-X_text_2 = tokenizer_2.texts_to_sequences(df["headline_concat"])
-X_text_2 = pad_sequences(X_text_2, maxlen=100, padding="post")
-
-#%%
-
-
-# Création de plusieurs horizons
-
-horizons = [1, 3, 5]
-
-# Retour simple : (P_t+1 - P_t)/P_t
-df["return_plus_1"] = df["Close"].pct_change(periods=1).shift(-1)
-df["return_plus_3"] = df["Close"].pct_change(periods=3).shift(-3)
-df["return_plus_5"] = df["Close"].pct_change(periods=5).shift(-5)
-
-
-y1 = df["Close"].pct_change(periods=1).shift(-1).values
-y3 = df["Close"].pct_change(periods=3).shift(-3).values
-y5 = df["Close"].pct_change(periods=5).shift(-5).values
-
-# Je perd les dernières lignes à cause du shift(-horizon)
-
-y_multi = np.column_stack([y1, y3, y5])
-
-scaler = StandardScaler()
-y_multi = scaler.fit_transform(y_multi)
-
-# Les rendements futurs créent des NaN → on coupe proprement les données
-# on enlève les lignes où y_multi a des NaN
-
-valid_idx = ~np.isnan(y_multi).any(axis=1)
-y_multi = y_multi[valid_idx]
-X_text_2 = X_text_2[-y_multi.shape[0]:]
-
-# Séparation des données
-
-X_train, X_test, y_train, y_test = train_test_split(
-    X_text_2,
-    y_multi,
-    shuffle=False, # On ne mélange jamais le futur avec le passé
-    test_size=0.2
-)
-
-
-#%%
-
-# Modèle
-
-model = create_text_attention_model_horizons(
-    vocab_size=20000,
-    maxlen=100,
-    horizons=horizons
-)
-
-
-#%%
-
-# Entraînement
-
-model.fit(X_train, y_train,
-    epochs=10,
-    batch_size=32,
-    shuffle=False)
-
-# plus le loss est faible (MSE), plus le modèle est bon
-
-#%%
-
-# Pq pas mettre des hyperparamètres sur les poids des horizons 
-
-y_hat_h = model.predict(X_test)
-weights = np.array([0.5, 0.3, 0.2]) # pondération des horizons, car on considère qu'à CT c'est plus important
-text_index = y_hat_h @ weights
-
-
-
-# %%
-
-print(y_hat_h)
-
-# 3 colonnes : horizon 1, 3, 5
-
-# %%
-
-print(text_index[:10])
-
-# 1 colonne : indice pondéré par le poids des horizons
-
-
-# %%
-
-# Pour ajouter la colonne text_index à df
-
-# Supposons que tu as créé X_text_2 et y_multi avec valid_idx
-# valid_idx correspond aux lignes valides utilisées pour le modèle
-# Ici, on prend la même portion de df
-
-df_subset = df.iloc[-len(text_index):].copy()  # les dernières lignes correspondent à text_index
-df_subset["text_index"] = text_index
-
-df_subset[["headline_concat", "text_index"]].head()
-
-# %%
-
-print(df_subset.info()) # il me reste que 397 lignes CAR je suis avec X_text
 
 
 # %%
@@ -318,7 +177,7 @@ X_train_h0, X_test_h0, y_train_h0, y_test_h0 = train_test_split(
 )
 
 model_h0 = create_text_attention_model(20000, 100)
-model_h0.fit(X_train, y_train, epochs=10, batch_size=32, shuffle=False)
+model_h0.fit(X_train_h0, y_train_h0, epochs=10, batch_size=32, shuffle=False)
 
 # %%
 
@@ -329,7 +188,7 @@ X_train_h1, X_test_h1, y_train_h1, y_test_h1 = train_test_split(
 )
 
 model_h1 = create_text_attention_model(20000, 100)
-model_h1.fit(X_train, y_train, epochs=10, batch_size=32, shuffle=False)
+model_h1.fit(X_train_h1, y_train_h1, epochs=10, batch_size=32, shuffle=False)
 
 # %%
 
@@ -340,7 +199,7 @@ X_train_h3, X_test_h3, y_train_h3, y_test_h3 = train_test_split(
 )
 
 model_h3 = create_text_attention_model(20000, 100)
-model_h3.fit(X_train, y_train, epochs=10, batch_size=32, shuffle=False)
+model_h3.fit(X_train_h3, y_train_h1, epochs=10, batch_size=32, shuffle=False)
 
 #%%
 
@@ -368,6 +227,8 @@ y_horizons = np.column_stack([y_hat_h0, y_hat_h1, y_hat_h3])
 
 weights = np.array([0.5, 0.35, 0.15]) # pondération des horizons, car on considère qu'à CT c'est plus important
 
+# On peut aussi faire une regression pour apprendre les poids optimaux
+
 headline_index = y_horizons @ weights
 
 # %%
@@ -378,4 +239,91 @@ df_merged = df.iloc[-len(headline_index):].copy()  # les dernières lignes corre
 df_merged["headline_index"] = headline_index
 
 df_merged[["headline_concat", "headline_index"]].head()
+# %%
+
+
+################################
+########                ########
+##          PROBLEME          ##
+##    X_TEST = 397 lignes     ##
+## =>   Time Series Split     ##
+########                ########
+################################
+
+
+tscv = TimeSeriesSplit(n_splits=5)
+
+#%%
+
+# Horizon 0
+
+y_hat_h0_full = np.zeros(len(y_h0))  # pour stocker toutes les prédictions
+
+for train_idx, test_idx in tscv.split(X_text_h):
+    X_train_fold, X_test_fold = X_text_h[train_idx], X_text_h[test_idx]
+    y_train_fold, y_test_fold = y_h0[train_idx], y_h0[test_idx]
+
+    model_h0 = create_text_attention_model(20000, 100)
+    model_h0.fit(X_train_fold, y_train_fold, epochs=10, batch_size=32, shuffle=False, verbose=0)
+
+    y_hat_h0_full[test_idx] = model_h0.predict(X_test_fold).ravel()
+
+
+#%%
+
+# Horizon 1
+
+y_hat_h1_full = np.zeros(len(y_h1))  # pour stocker toutes les prédictions
+
+for train_idx, test_idx in tscv.split(X_text_h):
+    X_train_fold, X_test_fold = X_text_h[train_idx], X_text_h[test_idx]
+    y_train_fold, y_test_fold = y_h1[train_idx], y_h1[test_idx]
+
+    model_h1 = create_text_attention_model(20000, 100)
+    model_h1.fit(X_train_fold, y_train_fold, epochs=10, batch_size=32, shuffle=False, verbose=0)
+
+    y_hat_h1_full[test_idx] = model_h1.predict(X_test_fold).ravel()
+
+
+#%%
+
+# Horizon 3
+
+y_hat_h3_full = np.zeros(len(y_h3))  # pour stocker toutes les prédictions
+
+for train_idx, test_idx in tscv.split(X_text_h):
+    X_train_fold, X_test_fold = X_text_h[train_idx], X_text_h[test_idx]
+    y_train_fold, y_test_fold = y_h3[train_idx], y_h3[test_idx]
+
+    model_h3 = create_text_attention_model(20000, 100)
+    model_h3.fit(X_train_fold, y_train_fold, epochs=10, batch_size=32, shuffle=False, verbose=0)
+
+    y_hat_h3_full[test_idx] = model_h3.predict(X_test_fold).ravel()
+
+#%% 
+
+# Pondération des horizons avec TSP
+
+y_horizons_full = np.column_stack([y_hat_h0_full, y_hat_h1_full, y_hat_h3_full])
+weights = np.array([0.5, 0.35, 0.15])
+text_index_full = y_horizons_full @ weights
+
+#%%
+
+# Il y a un problème de longueur : 1986 instead of 1989
+# Donc fait en sorte d'avoir la longueur de h3
+
+# On crée un mask sur toute la longueur de df
+mask = ~np.isnan(df["Close"].pct_change(periods=1).shift(-1)) & \
+       ~np.isnan(df["Close"].pct_change(periods=3).shift(-3))
+
+# Garder uniquement les lignes valides
+df_merged = df[mask].copy()
+
+# Ajouter ton indice texte calculé
+df_merged["text_index_full"] = text_index_full  # text_index_full doit avoir la même longueur que df_merged
+
+# Vérification
+df_merged[["headline_concat", "text_index_full"]].head()
+
 # %%
