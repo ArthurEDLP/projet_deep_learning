@@ -115,10 +115,11 @@ def create_text_attention_model(vocab_size, maxlen):# modèle autonome texte →
 
     x = Attention()(x) # le modèle apprend. Il sait quels mots sont importants.
 
-    x = Dense(32, activation="tanh")(x)# Transformation non linéaire du sens global
+    x = Dense(32, activation="tanh")(x)# Transforme le vecteur résumé par l’attention en un vecteur de dimension 32,
+                                       # avec une non-linéarité
     # Car mon indice est continu, négatif/positif, centré autour de 0. Pq tanh ? Car tanh donne des valeurs entre -1 et 1.
 
-    output = Dense(1, activation="tanh")(x)
+    output = Dense(1, activation="tanh")(x) # prend le vecteur de 32 dimensions et le réduit à un seule valeur
     # output: mon indice, de sentiment
     # négatif → pessimiste
     # positif → optimiste
@@ -338,5 +339,5 @@ df_merged[["headline_concat", "text_index_full"]].head()
 
 print(df_merged.info())
 # %%
-df_merged.to_parquet("data/finance_ml_dataset_indices_headline.parquet", engine="fastparquet")
+# df_merged.to_parquet("data/finance_ml_dataset_indices_headline.parquet", engine="fastparquet")
 # %%
