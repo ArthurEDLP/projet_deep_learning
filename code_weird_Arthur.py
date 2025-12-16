@@ -54,21 +54,13 @@ plt.show()
 
 # %%
 print(df.head())
-# %%
-
-################################
-########                ########
-##       MECA ATTENTION       ##
-########                ########
-################################
-
 
 
 # %%
 ################################
 ########                ########
 ##       MECA ATTENTION       ##
-##              2             ##
+##         3 horizons         ##
 ########                ########
 ################################
 
@@ -95,7 +87,7 @@ class Attention(tf.keras.layers.Layer):
 
 #%%
 
-def create_text_attention_model(vocab_size, maxlen, horizons): # modèle autonome texte → indice
+def create_text_attention_model_horizons(vocab_size, maxlen, horizons): # modèle autonome texte → indice
 
     inputs = Input(shape=(maxlen,)) # Une phrase = une séquence de mots
     
@@ -128,7 +120,7 @@ def create_text_attention_model(vocab_size, maxlen, horizons): # modèle autonom
 
 # Prétraitement texte : rendre le texte “numérique”
 
-tokenizer_2 = Tokenizer(num_words=20000, oov_token="<UNK>")
+tokenizer_2 = Tokenizer(num_words=20000, oov_token="<UNK>") # stratégie d'attributions des mots en vecteurs
 tokenizer_2.fit_on_texts(df["headline_concat"])
 
 X_text_2 = tokenizer_2.texts_to_sequences(df["headline_concat"])
@@ -158,6 +150,9 @@ y_multi = np.column_stack([y1, y3, y5])
 scaler = StandardScaler()
 y_multi = scaler.fit_transform(y_multi)
 
+# Les rendements futurs créent des NaN → on coupe proprement les données
+# on enlève les lignes où y_multi a des NaN
+
 valid_idx = ~np.isnan(y_multi).any(axis=1)
 y_multi = y_multi[valid_idx]
 X_text_2 = X_text_2[-y_multi.shape[0]:]
@@ -176,7 +171,7 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 # Modèle
 
-model = create_text_attention_model(
+model = create_text_attention_model_horizons(
     vocab_size=20000,
     maxlen=100,
     horizons=horizons
@@ -191,6 +186,8 @@ model.fit(X_train, y_train,
     epochs=10,
     batch_size=32,
     shuffle=False)
+
+# plus le loss est faible (MSE), plus le modèle est bon
 
 #%%
 
@@ -230,5 +227,155 @@ df_subset[["headline_concat", "text_index"]].head()
 
 # %%
 
-print(df_subset.info()) # il me reste que 397 lignes à cause des shifts donc on retravaille ça 
+print(df_subset.info()) # il me reste que 397 lignes CAR je suis avec X_text
+
+
+# %%
+
+################################
+########                ########
+##       MECA ATTENTION       ##
+##          3 modèles         ##
+##         3 horizons         ##
+########                ########
+################################
+
+# Ce que l'on a fait c'était un modèle qui prédit les 3 horizons en même temps
+# Maintenant on va faire 3 modèles séparés, un pour chaque horizon
+
+def create_text_attention_model(vocab_size, maxlen):
+
+    inputs = Input(shape=(maxlen,))
+    
+    x = Embedding(vocab_size, 128)(inputs)
+
+    x = Bidirectional(
+    LSTM(64, return_sequences=True))(x)
+
+    x = Attention()(x)
+
+    x = Dense(32, activation="tanh")(x)
+
+    output = Dense(1, activation="tanh")(x)
+    
+    model = Model(inputs, output)
+    model.compile(
+        optimizer="adam",
+        loss="mse"
+    )
+    return model
+
+# La fonction d'attention est la même que précédemment
+
+# %%
+
+# Prétraitement texte : rendre le texte “numérique”
+
+tokenizer_V = Tokenizer(num_words=20000, oov_token="<UNK>") # stratégie d'attributions des mots en vecteurs
+tokenizer_V.fit_on_texts(df["headline_concat"])
+
+X_text_V = tokenizer_V.texts_to_sequences(df["headline_concat"])
+X_text_V = pad_sequences(X_text_V, maxlen=100, padding="post")
+
+#%%
+
+# Création des différents horizons
+
+X_text_V              # texte tokenisé
+y_h0 = df["target_updown_plus_1_days"].values
+
+# Retour simple : (P_t+1 - P_t)/P_t
+#df["return_plus_1"] = df["Close"].pct_change(periods=1).shift(-1)
+#df["return_plus_3"] = df["Close"].pct_change(periods=3).shift(-3)
+
+# Je met sous hastag car on l'a déjà fait plus haut, c'est pour se souvenir
+
+y_h1 = df["Close"].pct_change(periods=1).shift(-1).values
+y_h3 = df["Close"].pct_change(periods=3).shift(-3).values
+
+#%% 
+
+# Onenlève les lignes où il y a des NaN 
+
+mask_1 = ~np.isnan(y_h1)
+mask_3 = ~np.isnan(y_h3)
+
+mask = mask_1 & mask_3
+
+X_text_h = X_text_V[mask]
+y_h0 = y_h0[mask]
+y_h1 = y_h1[mask]
+y_h3 = y_h3[mask]
+
+
+
+#%%
+
+# Séparation des données h0
+
+X_train_h0, X_test_h0, y_train_h0, y_test_h0 = train_test_split(
+    X_text_h, y_h0, shuffle=False, test_size=0.2
+)
+
+model_h0 = create_text_attention_model(20000, 100)
+model_h0.fit(X_train, y_train, epochs=10, batch_size=32, shuffle=False)
+
+# %%
+
+# Séparation des données h1
+
+X_train_h1, X_test_h1, y_train_h1, y_test_h1 = train_test_split(
+    X_text_h, y_h1, shuffle=False, test_size=0.2
+)
+
+model_h1 = create_text_attention_model(20000, 100)
+model_h1.fit(X_train, y_train, epochs=10, batch_size=32, shuffle=False)
+
+# %%
+
+# Séparation des données h3
+
+X_train_h3, X_test_h3, y_train_h3, y_test_h3 = train_test_split(
+    X_text_h, y_h3, shuffle=False, test_size=0.2
+)
+
+model_h3 = create_text_attention_model(20000, 100)
+model_h3.fit(X_train, y_train, epochs=10, batch_size=32, shuffle=False)
+
+#%%
+
+y_hat_h0 = model_h0.predict(X_test_h0)
+
+print(y_hat_h0)
+
+#%%
+
+y_hat_h1 = model_h1.predict(X_test_h1)
+
+print(y_hat_h1)
+
+#%%
+
+y_hat_h3 = model_h3.predict(X_test_h3)
+
+print(y_hat_h3)
+
+#%%
+
+# Moyenne pondérés des 3 horizons
+
+y_horizons = np.column_stack([y_hat_h0, y_hat_h1, y_hat_h3])
+
+weights = np.array([0.5, 0.35, 0.15]) # pondération des horizons, car on considère qu'à CT c'est plus important
+
+headline_index = y_horizons @ weights
+
+# %%
+
+# ajout de la colonne headline_index à df
+
+df_merged = df.iloc[-len(headline_index):].copy()  # les dernières lignes correspondent à text_index
+df_merged["headline_index"] = headline_index
+
+df_merged[["headline_concat", "headline_index"]].head()
 # %%
