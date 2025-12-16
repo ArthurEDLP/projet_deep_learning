@@ -42,7 +42,7 @@ from sklearn.model_selection import TimeSeriesSplit
 
 #%%
 
-df = pd.read_parquet("data/finance_ml_dataset.parquet", engine="fastparquet")
+df = pd.read_parquet("data/finance_ml_dataset_clean.parquet", engine="fastparquet")
 print(df.head())
 print(df.info())
 
@@ -102,21 +102,28 @@ class Attention(tf.keras.layers.Layer):
 # Ce que l'on a fait c'était un modèle qui prédit les 3 horizons en même temps
 # Maintenant on va faire 3 modèles séparés, un pour chaque horizon
 
-def create_text_attention_model(vocab_size, maxlen):
+def create_text_attention_model(vocab_size, maxlen):# modèle autonome texte → indice
 
-    inputs = Input(shape=(maxlen,))
+    inputs = Input(shape=(maxlen,))# Une phrase = une séquence de mots
     
-    x = Embedding(vocab_size, 128)(inputs)
+    x = Embedding(vocab_size, 128)(inputs)# Chaque mot devient un vecteur, la phrase devient une matrice (tokens, features)
+    # Les mots deviennent du sens
 
     x = Bidirectional(
-    LSTM(64, return_sequences=True))(x)
+    LSTM(64, return_sequences=True))(x)# Sans return_sequences=True → pas d’attention possible, car on perd de l'information
+    # La phrase est comprise dans son contexte
 
-    x = Attention()(x)
+    x = Attention()(x) # le modèle apprend. Il sait quels mots sont importants.
 
-    x = Dense(32, activation="tanh")(x)
+    x = Dense(32, activation="tanh")(x)# Transformation non linéaire du sens global
+    # Car mon indice est continu, négatif/positif, centré autour de 0. Pq tanh ? Car tanh donne des valeurs entre -1 et 1.
 
     output = Dense(1, activation="tanh")(x)
-    
+    # output: mon indice, de sentiment
+    # négatif → pessimiste
+    # positif → optimiste
+    # proche de 0 → neutre
+
     model = Model(inputs, output)
     model.compile(
         optimizer="adam",
@@ -132,6 +139,7 @@ def create_text_attention_model(vocab_size, maxlen):
 
 tokenizer_V = Tokenizer(num_words=20000, oov_token="<UNK>") # stratégie d'attributions des mots en vecteurs
 tokenizer_V.fit_on_texts(df["headline_concat"])
+# Permet de prendre en compte l'ordre des mots
 
 X_text_V = tokenizer_V.texts_to_sequences(df["headline_concat"])
 X_text_V = pad_sequences(X_text_V, maxlen=100, padding="post")
@@ -326,4 +334,7 @@ df_merged["text_index_full"] = text_index_full  # text_index_full doit avoir la 
 # Vérification
 df_merged[["headline_concat", "text_index_full"]].head()
 
+# %%
+
+print(df_merged.info())
 # %%
