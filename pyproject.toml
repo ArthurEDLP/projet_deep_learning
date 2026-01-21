@@ -23,13 +23,6 @@ dependencies = [
     "xgboost>=2.1.0",
     "pyarrow>=22.0.0",
     "fastparquet>=2024.11.0",
-<<<<<<< HEAD
     "tensorflow>=2.20.0",
     "tensorflow-keras>=0.1",
-=======
-    "jax>=0.8.1",
-    "keras>=3.12.0",
-    "nbformat>=5.10.4",
-    "tensorflow>=2.20.0",
->>>>>>> 9c2cb004381510ab488f843bf9f1668409c87312
 ]
